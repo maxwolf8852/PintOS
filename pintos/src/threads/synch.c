@@ -201,6 +201,8 @@ sema_init (&lock->semaphore, 1);
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
+
+
 void
 lock_acquire (struct lock *lock)
 {
@@ -212,20 +214,14 @@ if(lock->holder!= NULL){
 
 thread_current()->lock_wait = lock;
 if(thread_current()->priority > lock->holder->priority ){
-struct thread* tmp = thread_current();
-while(tmp->lock_wait!= 0x00){
-struct lock* new_lock = tmp->lock_wait;
-
-new_lock->holder->waiting_prior[new_lock->holder->w_size] = tmp->priority;
-new_lock->holder->w_size++;
-new_lock->holder->priority = tmp->priority;
-
-if(new_lock->holder->status == THREAD_READY) break;
-tmp = new_lock->holder;
-}
+//struct thread* tmp = thread_current();
+//while(tmp->lock_wait!= 0x00){
+priority_update(thread_current());
+//}
 if(lock->overloaded == false) lock->holder->num_lock++;
 lock->overloaded = true;
 sortlist_r_pr();
+
 }
 }
 

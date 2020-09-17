@@ -99,6 +99,18 @@ bool list_priority_function (const struct list_elem *a,
 return list_entry(a, struct thread, elem)->priority>list_entry(b, struct thread, elem)->priority;
 }
 
+void priority_update(struct thread* TH){
+if(TH->lock_wait == 0x00) return;
+struct lock* new_lock = TH->lock_wait;
+new_lock->holder->waiting_prior[new_lock->holder->w_size] = TH->priority;
+new_lock->holder->w_size++;
+new_lock->holder->priority = TH->priority;
+
+if(new_lock->holder->status == THREAD_READY) return;
+TH = new_lock->holder;
+priority_update(TH);
+}
+
 
 void arr_create (struct thread* TH, int prior){
 TH->w_size++;

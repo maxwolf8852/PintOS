@@ -156,6 +156,7 @@ int thread_get_load_avg (void);
 bool list_priority_function (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux UNUSED);
+void priority_update(struct thread* TH);
 
 void sortlist_r_pr (void);
 int find_number(struct thread* TH, int prior);
