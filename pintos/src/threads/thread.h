@@ -4,6 +4,13 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "malloc.h"
+
+struct lock_waiting{
+int field;
+struct lock_waiting* next;
+
+};
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -88,9 +95,16 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+   int priority_standart;
     struct list_elem allelem;           /* List element for all threads list. */
+    struct lock_waiting* waiting_prior;
+    struct lock* lock_wait;
+    //int waiting_prior[50];
+    int w_size;
 
-    int64_t CPU_burst;
+    int num_lock;
+   // struct lock_waiting* LW;
+    //int64_t CPU_burst;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -144,4 +158,17 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+bool list_priority_function (const struct list_elem *a,
+                             const struct list_elem *b,
+                             void *aux UNUSED);
+struct lock_waiting* push_lw (struct lock_waiting* lw, int lwi);
+void sortlist_r_pr (void);
+int find_number(struct thread* TH, int prior);
+void arr_create (struct thread* TH, int prior);
+void arr_del(struct thread* TH, int i);
+bool synch_priority_function(struct list_elem *a,
+                             struct list_elem *b,
+                             void *aux UNUSED);
+struct lock_waiting* delete_lw (struct lock_waiting* lw, int lwi);
+int last_elem_in_list_lw (struct lock_waiting* lw);
 #endif /* threads/thread.h */

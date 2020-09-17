@@ -71,6 +71,9 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+
+
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -84,6 +87,79 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+
+
+/*
+MY FUNCTIONS
+*/
+
+bool list_priority_function (const struct list_elem *a,
+                             const struct list_elem *b,
+                             void *aux UNUSED){
+return list_entry(a, struct thread, elem)->priority>list_entry(b, struct thread, elem)->priority;
+}
+
+struct lock_waiting* push_lw (struct lock_waiting* lw, int lwi){
+if(lw == 0){
+lw = (struct lock_waiting*)malloc(sizeof(struct lock_waiting));
+lw->field = lwi;
+lw->next = 0x00;
+return lw;
+}
+else lw->next = push_lw (lw->next, lwi);
+return lw;
+}
+
+struct lock_waiting* delete_lw (struct lock_waiting* lw, int lwi){
+if(lw == 0){
+return 0;
+}
+if(lw->field == lwi ){
+struct lock_waiting* tmp = lw->next; 
+free(lw);
+lw = NULL;
+return tmp;
+}
+else lw->next = delete_lw (lw->next, lwi);
+return lw;
+}
+
+int last_elem_in_list_lw (struct lock_waiting* lw){
+if(lw==0) return 0;
+return (lw->next!=0)?last_elem_in_list_lw (lw->next):lw->field;
+}
+
+/*void arr_create (struct thread* TH, int prior){
+TH->w_size++;
+TH->waiting_prior[TH->w_size-1] = prior;
+}
+
+int find_number(struct thread* TH, int prior){
+for(int i=0; i< TH->w_size-1; i++)
+if(TH->waiting_prior[i] == prior) return i;
+}
+
+void arr_del(struct thread* TH, int i){
+for(;i<TH->w_size-1; i++)
+TH->waiting_prior[i] = TH->waiting_prior[i+1];
+
+TH->w_size--;
+
+TH->waiting_prior[TH->w_size] = 0x00;
+}*/
+
+bool synch_priority_function(struct list_elem* a, struct list_elem* b, void* aux UNUSED)
+{
+return (list_entry(list_front(&(&(list_entry(a, struct semaphore_elem, elem))->semaphore)->waiters), struct thread, elem)->priority > list_entry(list_front(&(&(list_entry(b, struct semaphore_elem, elem))->semaphore)->waiters), struct thread, elem)->priority)?true:false;
+
+}
+
+void sortlist_r_pr (void){
+list_sort(&ready_list, list_priority_function, 0x00);
+}
+/*
+END
+*/
 void
 thread_init (void) 
 {
@@ -137,6 +213,10 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+/*thread_ticks++;
+if(check_max_priority()>thread_current ()->priority)
+if(thread_ticks >= TIME_SLICE)
+intr_yield_on_return ();*/
 }
 
 /* Prints thread statistics. */
@@ -208,6 +288,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+thread_yield();
+
 
   return tid;
 }
@@ -245,7 +327,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, list_priority_function, 0x00);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -316,7 +398,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem,list_priority_function ,0x00);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,7 +425,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+
+
+  thread_current ()-> priority_standart = new_priority;
+if(thread_current()->w_size == 0){
+thread_current()->priority = new_priority;
+thread_yield();
+}
+
 }
 
 /* Returns the current thread's priority. */
@@ -469,7 +558,17 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+t->lock_wait = 0x00;
+t->waiting_prior = 0;
+t-> priority_standart = priority;
+
+t->w_size=0;
+
+t->num_lock = 0;
+enum intr_level old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+intr_set_level (old_level);
+  
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -555,6 +654,9 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+
+//sortlist_r_pr ();
+
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
