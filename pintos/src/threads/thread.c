@@ -99,37 +99,8 @@ bool list_priority_function (const struct list_elem *a,
 return list_entry(a, struct thread, elem)->priority>list_entry(b, struct thread, elem)->priority;
 }
 
-struct lock_waiting* push_lw (struct lock_waiting* lw, int lwi){
-if(lw == 0){
-lw = (struct lock_waiting*)malloc(sizeof(struct lock_waiting));
-lw->field = lwi;
-lw->next = 0x00;
-return lw;
-}
-else lw->next = push_lw (lw->next, lwi);
-return lw;
-}
 
-struct lock_waiting* delete_lw (struct lock_waiting* lw, int lwi){
-if(lw == 0){
-return 0;
-}
-if(lw->field == lwi ){
-struct lock_waiting* tmp = lw->next; 
-free(lw);
-lw = NULL;
-return tmp;
-}
-else lw->next = delete_lw (lw->next, lwi);
-return lw;
-}
-
-int last_elem_in_list_lw (struct lock_waiting* lw){
-if(lw==0) return 0;
-return (lw->next!=0)?last_elem_in_list_lw (lw->next):lw->field;
-}
-
-/*void arr_create (struct thread* TH, int prior){
+void arr_create (struct thread* TH, int prior){
 TH->w_size++;
 TH->waiting_prior[TH->w_size-1] = prior;
 }
@@ -146,7 +117,7 @@ TH->waiting_prior[i] = TH->waiting_prior[i+1];
 TH->w_size--;
 
 TH->waiting_prior[TH->w_size] = 0x00;
-}*/
+}
 
 bool synch_priority_function(struct list_elem* a, struct list_elem* b, void* aux UNUSED)
 {
@@ -559,7 +530,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 t->lock_wait = 0x00;
-t->waiting_prior = 0;
+//t->waiting_prior = 0;
 t-> priority_standart = priority;
 
 t->w_size=0;

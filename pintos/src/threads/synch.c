@@ -216,30 +216,16 @@ struct thread* tmp = thread_current();
 while(tmp->lock_wait!= 0x00){
 struct lock* new_lock = tmp->lock_wait;
 
-
-enum intr_level old_level;
-  old_level = intr_disable ();
-
-  new_lock->holder->waiting_prior = push_lw(new_lock->holder->waiting_prior,tmp->priority );
-  new_lock->holder->w_size++;
-//arr_create(new_lock->holder,tmp->priority);
-  intr_set_level (old_level);
-
-
-
-
-//new_lock->holder->waiting_prior[new_lock->holder->w_size] = tmp->priority;  
-//new_lock->holder->waiting_prior = push_lw(new_lock->holder->waiting_prior,tmp->priority,new_lock->holder->w_size );
-//arr_create(new_lock->holder,tmp->priority);
-//new_lock->holder->w_size++;
+new_lock->holder->waiting_prior[new_lock->holder->w_size] = tmp->priority;
+new_lock->holder->w_size++;
 new_lock->holder->priority = tmp->priority;
+
 if(new_lock->holder->status == THREAD_READY) break;
 tmp = new_lock->holder;
 }
 if(lock->overloaded == false) lock->holder->num_lock++;
 lock->overloaded = true;
 sortlist_r_pr();
-
 }
 }
 
@@ -284,17 +270,12 @@ lock_release (struct lock *lock)
 
   if(lock->overloaded == true){
 thread_current()->num_lock--;
-//arr_del(list_entry(list_front(&sem_ptr->waiters), struct thread, elem)->priority);
-//thread_current()->priority = thread_current()->waiting_prior[thread_current()->w_size-1];
-enum intr_level old_level;
-  old_level = intr_disable ();
-thread_current()->waiting_prior = delete_lw(thread_current()->waiting_prior, list_entry(list_front(&sem_ptr->waiters), struct thread, elem)->priority);
-thread_current()->w_size--;
-thread_current()->priority = last_elem_in_list_lw(thread_current()->waiting_prior);
-intr_set_level (old_level);
 
-//arr_del(thread_current(), find_number(thread_current(),list_entry(list_front(&sem_ptr->waiters), struct thread, elem)->priority));
-//thread_current()->priority = thread_current()->waiting_prior[thread_current()->w_size-1];
+
+arr_del(thread_current(), find_number(thread_current(),list_entry(list_front(&sem_ptr->waiters), struct thread, elem)->priority));
+thread_current()->priority = thread_current()->waiting_prior[thread_current()->w_size-1];
+
+
 lock->overloaded = false;
 }
 if(thread_current()->num_lock == 0){
