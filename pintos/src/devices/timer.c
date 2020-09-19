@@ -1,12 +1,15 @@
+
 #include "devices/timer.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include "threads/malloc.h"
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -29,6 +32,10 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
+
+static struct thread_list* wait_list;
+static void check_invoke_threads (void);
+static struct thread_list* insert_to_list(struct thread_list* TL, struct thread* TH);  /* NEW_LAB */
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -89,11 +96,50 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+
+ASSERT (intr_get_level () == INTR_ON);
+
+struct thread* new_thread = thread_current ();
+
+if(ticks>0){
+new_thread->wait_ticks  = timer_ticks() + ticks;
+wait_list = insert_to_list(wait_list, new_thread);
+
+enum intr_level old_level = intr_disable ();  // interrupts off
+thread_block();  // 'cause this work without interrupts
+intr_set_level (old_level);   // on
+}
+}
+
+static void check_invoke_threads (){
+if(wait_list == 0x00) return;
+else if(wait_list->field->status == THREAD_BLOCKED && wait_list->field->wait_ticks<=timer_ticks()){
+thread_unblock(wait_list->field);
+wait_list = wait_list->next; 
+check_invoke_threads();
+}
+}
+
+static struct thread_list* insert_to_list(struct thread_list* TL, struct thread* TH){
+if(TL == 0x00){
+TL = (struct thread_list*)malloc(sizeof(struct thread_list));
+TL->field = TH;
+TL->next = 0x00;
+return TL;
+}
+else if (TH->wait_ticks>=TL->field->wait_ticks){
+TL->next = insert_to_list(TL->next, TH);
+}
+else{
+struct thread_list* nw = (struct thread_list*)malloc(sizeof(struct thread_list));
+nw->field = TH;
+nw->next = TL;
+TL = nw;
+}
+
+return TL;
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,6 +218,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+	check_invoke_threads();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
