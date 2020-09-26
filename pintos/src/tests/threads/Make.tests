@@ -9,7 +9,11 @@ priority-donate-nest priority-donate-sema priority-donate-lower		\
 priority-fifo priority-preempt priority-sema priority-condvar		\
 priority-donate-chain                                                   \
 mlfqs-load-1 mlfqs-load-60 mlfqs-load-avg mlfqs-recent-1 mlfqs-fair-2	\
-mlfqs-fair-20 mlfqs-nice-2 mlfqs-nice-10 mlfqs-block)
+mlfqs-fair-20 mlfqs-nice-2 mlfqs-nice-10 mlfqs-block \
+max-threads max-rec-calls max-mem-malloc max-mem-calloc max-mem-palloc \
+ticks-stats threads-audit threads-term threads-pause-resume \
+test-new-alg \
+narrow-bridge bear birds rolcoast shower molec smokers)
 
 # Sources for tests.
 tests/threads_SRC  = tests/threads/tests.c
@@ -36,7 +40,24 @@ tests/threads_SRC += tests/threads/mlfqs-load-avg.c
 tests/threads_SRC += tests/threads/mlfqs-recent-1.c
 tests/threads_SRC += tests/threads/mlfqs-fair.c
 tests/threads_SRC += tests/threads/mlfqs-block.c
+tests/threads_SRC += tests/threads/max-threads.c
+tests/threads_SRC += tests/threads/max-rec-calls.c
+tests/threads_SRC += tests/threads/max-mem.c
+tests/threads_SRC += tests/threads/ticks-stats.c
+tests/threads_SRC += tests/threads/threads-audit.c
+tests/threads_SRC += tests/threads/threads-term.c
+tests/threads_SRC += tests/threads/threads-pause-resume.c
 tests/threads_SRC += tests/threads/test-new-alg.c
+tests/threads_SRC += tests/threads/narrow-bridge.c
+tests/threads_SRC += tests/threads/narrow-bridge-test.c
+tests/threads_SRC += tests/threads/hair.c
+tests/threads_SRC += tests/threads/bear.c
+tests/threads_SRC += tests/threads/birds.c
+tests/threads_SRC += tests/threads/rolcoast.c
+tests/threads_SRC += tests/threads/shower.c
+tests/threads_SRC += tests/threads/molec.c
+tests/threads_SRC += tests/threads/smokers.c
+
 
 MLFQS_OUTPUTS = 				\
 tests/threads/mlfqs-load-1.output		\

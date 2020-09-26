@@ -4,20 +4,11 @@
 #include <list.h>
 #include <stdbool.h>
 
-
-
 /* A counting semaphore. */
 struct semaphore 
   {
     unsigned value;             /* Current value. */
     struct list waiters;        /* List of waiting threads. */
-  };
-
-struct semaphore_elem 
-  {
-    struct list_elem elem;              /* List element. */
-    struct semaphore semaphore;         /* This semaphore. */
-   //int priority;
   };
 
 void sema_init (struct semaphore *, unsigned value);
@@ -29,7 +20,6 @@ void sema_self_test (void);
 /* Lock. */
 struct lock 
   {
-    bool overloaded;
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
   };

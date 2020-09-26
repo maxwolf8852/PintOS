@@ -356,6 +356,7 @@ usage (void)
           "  run 'PROG [ARG...]' Run PROG and wait for it to complete.\n"
 #else
           "  run TEST           Run TEST.\n"
+          "  run 'narrow-bridge VL VR EL ER'  Run narrow-bridge test with the specified arguments.\n"
 #endif
 #ifdef FILESYS
           "  ls                 List files in the root directory.\n"

@@ -71,9 +71,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-
-
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -87,98 +84,6 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
-
-
-/*
-MY FUNCTIONS
-*/
-
-char alg_TYPE = 'R';
-
-char re_TYPE_alg (char new_T){
-if(new_T=='R' || new_T == 'F')
-alg_TYPE = new_T;
-else if(new_T == '0') return alg_TYPE;
-}
-
-bool list_priority_function (const struct list_elem *a,
-                             const struct list_elem *b,
-                             void *aux UNUSED){
-return list_entry(a, struct thread, elem)->priority>list_entry(b, struct thread, elem)->priority;
-}
-
-bool list_name_function (const struct list_elem *a,
-                             const struct list_elem *b,
-                             void *aux UNUSED){
-if(strcmp(list_entry(a, struct thread, elem)->name,list_entry(b, struct thread, elem)->name)>=0) return false;
-else return true;
-}
-
-/*struct lock_waiting* add_lw (struct lock_waiting* lw, int priority){
-if(lw==0){
-lw = (struct lock_waiting*)malloc(sizeof(struct lock_waiting));
-lw->field = priority;
-}
-else lw->next = add_lw (lw->next, priority);
-return lw;
-}
-
-struct lock_waiting* del_lw (struct lock_waiting* lw, int priority){
-if(lw == 0) return;
-if(lw->field == priority){
-struct lock_waiting* tmp = lw->next;
-free(lw);
-lw = 0x00;
-return tmp;
-}
-else lw->next = del_lw ( lw->next,  priority);
-return lw;
-}*/
-
-void priority_update(struct thread* TH){
-if(TH->lock_wait == 0x00) return;
-struct lock* new_lock = TH->lock_wait;
-//new_lock->holder->LW = add_lw(new_lock->holder->LW, TH->priority );
-new_lock->holder->waiting_prior[new_lock->holder->w_size] = TH->priority;
-new_lock->holder->w_size++;
-new_lock->holder->priority = TH->priority;
-if(new_lock->holder->status == THREAD_READY) return;
-TH = new_lock->holder;
-priority_update(TH);
-}
-
-
-void arr_create (struct thread* TH, int prior){
-TH->w_size++;
-TH->waiting_prior[TH->w_size-1] = prior;
-}
-
-int find_number(struct thread* TH, int prior){
-for(int i=0; i< TH->w_size-1; i++)
-if(TH->waiting_prior[i] == prior) return i;
-}
-
-void arr_del(struct thread* TH, int i){
-for(;i<TH->w_size-1; i++)
-TH->waiting_prior[i] = TH->waiting_prior[i+1];
-
-TH->w_size--;
-
-TH->waiting_prior[TH->w_size] = 0x00;
-}
-
-bool synch_priority_function(struct list_elem* a, struct list_elem* b, void* aux UNUSED)
-{
-return (list_entry(list_front(&(&(list_entry(a, struct semaphore_elem, elem))->semaphore)->waiters), struct thread, elem)->priority > list_entry(list_front(&(&(list_entry(b, struct semaphore_elem, elem))->semaphore)->waiters), struct thread, elem)->priority)?true:false;
-
-}
-
-void sortlist_r_pr (void){
-list_sort(&ready_list, list_priority_function, 0x00);
-}
-/*
-END
-*/
 void
 thread_init (void) 
 {
@@ -230,19 +135,8 @@ thread_tick (void)
     kernel_ticks++;
 
   /* Enforce preemption. */
-if(alg_TYPE == 'R'){
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-}
-else if (alg_TYPE == 'F'){
-if (++thread_ticks >= t->CPU_burst)  // t->CPU_burst
- intr_yield_on_return ();
-}
-else ASSERT(0);
-/*thread_ticks++;
-if(check_max_priority()>thread_current ()->priority)
-if(thread_ticks >= TIME_SLICE)
-intr_yield_on_return ();*/
 }
 
 /* Prints thread statistics. */
@@ -314,9 +208,6 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-//if(re_TYPE_alg('0')=='R')
-thread_yield();
-
 
   return tid;
 }
@@ -354,16 +245,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-if(alg_TYPE == 'R'){
-list_insert_ordered(&ready_list, &t->elem, list_priority_function, 0x00);
-}
-else if (alg_TYPE == 'F'){
-//list_push_back(&ready_list, &t->elem);
-list_insert_ordered(&ready_list, &t->elem, list_name_function, 0x00);
-
-}
-else ASSERT(0);
-  
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -433,17 +315,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-if(alg_TYPE == 'R'){
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem,list_priority_function ,0x00);
-}
-else if (alg_TYPE == 'F'){
-
- if (cur != idle_thread) 
-list_insert_ordered(&ready_list,  &cur->elem, list_name_function, 0x00);
-    //list_push_back (&ready_list, &cur->elem);
-}
-else ASSERT(0);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -470,14 +343,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-
-
-  thread_current ()-> priority_standart = new_priority;
-if(thread_current()->w_size == 0){
-thread_current()->priority = new_priority;
-thread_yield();
-}
-
+  thread_current ()->priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -601,29 +467,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
- 
+  t->priority = priority;
   t->magic = THREAD_MAGIC;
-t->lock_wait = 0x00;
-if(alg_TYPE == 'R'){
-t->priority = priority;
-t-> priority_standart = priority;
-}
-else if (alg_TYPE == 'F'){
-int busts_F[] = {8, 1, 4, 4, 1, 7};
-int priority_F[] = {5, 4, 12, 63, 60, 54};
-t->priority = t->priority_standart = priority_F[priority];
-t->CPU_burst = busts_F[priority];
-}
-else ASSERT(0);
- 
-
-t->w_size=0;
-
-t->num_lock = 0;
-enum intr_level old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
-intr_set_level (old_level);
-  
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -709,9 +555,6 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
-
-//sortlist_r_pr ();
-
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;

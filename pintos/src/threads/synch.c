@@ -32,11 +32,6 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
-//NEW
-
-//END
-
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -73,16 +68,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-
-if(re_TYPE_alg('0') == 'R'){
-list_insert_ordered (&sema->waiters, &thread_current ()->elem, list_priority_function, 0x00);
-}
-else if (re_TYPE_alg('0') == 'F'){
-list_insert_ordered (&sema->waiters, &thread_current ()->elem, list_name_function, 0x00);
-//list_push_back(&sema->waiters, &thread_current ()->elem);
-}
-else ASSERT(0);
-      
+      list_push_back (&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
   sema->value--;
@@ -127,17 +113,10 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) {
-if(re_TYPE_alg('0')=='R')
-list_sort(&sema->waiters, list_priority_function, 0x00);
-else if(re_TYPE_alg('0')=='F')
-list_sort(&sema->waiters, list_name_function, 0x00);
+  if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-
-}
   sema->value++;
-thread_yield();
   intr_set_level (old_level);
 }
 
@@ -199,10 +178,7 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
-sema_init (&lock->semaphore, 1);
-  lock->overloaded = false;
-
-  
+  sema_init (&lock->semaphore, 1);
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -213,33 +189,15 @@ sema_init (&lock->semaphore, 1);
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
-
-
 void
 lock_acquire (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  
-if(lock->holder!= NULL){
-
-thread_current()->lock_wait = lock;
-if(thread_current()->priority > lock->holder->priority ){
-//struct thread* tmp = thread_current();
-//while(tmp->lock_wait!= 0x00){
-priority_update(thread_current());
-//}
-if(lock->overloaded == false) lock->holder->num_lock++;
-lock->overloaded = true;
-sortlist_r_pr();
-
-}
-}
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-lock->holder->lock_wait = 0x00;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -272,29 +230,7 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-   
-  struct semaphore* sem_ptr = &lock->semaphore; 
-if(re_TYPE_alg('0') == 'R')
-  list_sort(&sem_ptr->waiters, list_priority_function, 0x00);
-else if(re_TYPE_alg('0') == 'F')
-list_sort(&sem_ptr->waiters, list_name_function, 0x00);
 
-  if(lock->overloaded == true){
-thread_current()->num_lock--;
-
-
-arr_del(thread_current(), find_number(thread_current(),list_entry(list_front(&sem_ptr->waiters), struct thread, elem)->priority));
-thread_current()->priority = thread_current()->waiting_prior[thread_current()->w_size-1];
-
-
-lock->overloaded = false;
-}
-if(thread_current()->num_lock == 0){
-thread_current()->w_size = 0;
-thread_current()->priority = thread_current()->priority_standart;
-
-
-}
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
@@ -310,6 +246,12 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
+/* One semaphore in a list. */
+struct semaphore_elem 
+  {
+    struct list_elem elem;              /* List element. */
+    struct semaphore semaphore;         /* This semaphore. */
+  };
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
@@ -353,15 +295,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-
-if(re_TYPE_alg('0') == 'R'){
-list_insert_ordered (&cond->waiters, &waiter.elem, list_priority_function, 0x00); 
-}
-else if (re_TYPE_alg('0') == 'F'){
-list_insert_ordered (&cond->waiters, &waiter.elem, list_name_function, 0x00); 
-//list_push_back(&cond->waiters, &waiter.elem);
-}
-  
+  list_push_back (&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -381,7 +315,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
- list_sort(&cond->waiters,synch_priority_function,0x00);
+
   if (!list_empty (&cond->waiters)) 
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
@@ -402,4 +336,3 @@ cond_broadcast (struct condition *cond, struct lock *lock)
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
 }
-
