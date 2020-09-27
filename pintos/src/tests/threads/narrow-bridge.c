@@ -58,15 +58,33 @@ else if (type == 1 && dir == 1)
 sema_up(&car_e_right);
 }
 
+bool extra_car_exist (int i){
+if(i == 0){
+BD.left_e--;
+int type = set_type();
+int dir = set_dir(0);
+BD.left_e++;
+return (dir == 0 && type == 0); 
+}
+else if(i == 1){
+BD.right_e--;
+int type = set_type();
+int dir = set_dir(1);
+BD.right_e++;
+return (dir == 1 && type == 0); 
+}
+}
+
 bool car_exist (int type, int dir){
+int ct = 0; 
 if(type == 0 && dir == 0)
-return (BD.left_s>1);
+return  (BD.left_s>1);
 else if (type == 0 && dir == 1)
 return (BD.right_s>1);
 else if(type == 1 && dir == 0)
-return (BD.left_e>1);
+return (BD.left_e>1)?true:(extra_car_exist(0));
 else if (type == 1 && dir == 1)
-return (BD.right_e>1);
+return (BD.right_e>1)?true:(extra_car_exist(1));
 }
 
 
@@ -83,13 +101,11 @@ void narrow_bridge_init(unsigned int num_vehicles_left, unsigned int num_vehicle
 	BD.right_s = num_vehicles_right;
 	BD.left_e = num_emergency_left;
 	BD.right_e = num_emergency_right;
-
-	BD.dir = set_dir(1);
+	
+	BD.dir = set_dir((BD.left_e>BD.right_e)?0:(BD.right_e ==0)?(BD.left_s>BD.right_s)?0:1:1);
 	BD.type = set_type();
 
 }
-
-
 
 
 void arrive_bridge(enum car_priority prio, enum car_direction dir)
@@ -106,21 +122,37 @@ minus_count(prio, dir);
 int temp = set_dir(dir);
 change = (temp!=BD.dir);
 BD.dir = temp;
-temp = set_type();
-change = (change)?change:(temp!=BD.type);
-BD.type = temp;
+BD.type = set_type();
 //
+}
+
+void sema_up_second (int type, int dir ){
+if(BD.type == 0) car_sema_up(BD.type, BD.dir);
+else{
+if(dir == 1){
+BD.left_e--;
+int type1 = set_type();
+int dir1 = set_dir(0);
+BD.left_e++;
+car_sema_up(type1, dir1);
+}
+else if(dir == 0){
+BD.right_e--;
+int type1 = set_type();
+int dir1 = set_dir(1);
+BD.right_e++;
+car_sema_up(type1, dir1);
+}
+}
 }
 
 void exit_bridge(enum car_priority prio, enum car_direction dir)
 {
-if(two_change==0) car_sema_up(BD.type, BD.dir);
 if(change){
-if(car_exist(BD.type, BD.dir) && two_change==0) { car_sema_up(BD.type, BD.dir); two_change++;}
+if(bridge_count == 1) car_sema_up(BD.type, BD.dir);
+if(bridge_count==1 && car_exist(BD.type, BD.dir)) { sema_up_second(prio, dir);}
 }
-else two_change = 0;
-
-if(bridge_count == 1) two_change = 0;
+else car_sema_up(BD.type, BD.dir);
 
 bridge_count--;
 }
