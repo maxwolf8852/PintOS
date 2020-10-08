@@ -19,7 +19,7 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
   if ( *(int*) f->esp == SYS_WRITE) {
  putbuf( ((const char**) f->esp)[2], ((size_t*) f->esp)[3]);
