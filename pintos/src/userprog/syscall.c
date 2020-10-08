@@ -6,6 +6,12 @@
 
 static void syscall_handler (struct intr_frame *);
 
+static int exit_status = 0x00;
+
+int get_exit_code(void){
+return exit_status;
+}
+
 void
 syscall_init (void) 
 {
@@ -15,6 +21,17 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+  if ( *(int*) f->esp == SYS_WRITE) {
+ putbuf( ((const char**) f->esp)[2], ((size_t*) f->esp)[3]);
+ return;
+ }
+  if (*(int*) f->esp == SYS_EXIT) {
+ exit_status = ((size_t*) f->esp)[1];
+ thread_exit();
+ }
+else {
+printf ("system call!\n");
+ thread_exit ();
+}
+
 }

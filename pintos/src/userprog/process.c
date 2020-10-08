@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -17,9 +18,58 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+struct semaphore process_sema;
+
+void make_stack (void** esp, char* file_name){
+#define sz_int 4
+char *fn_copy, *token, save_ptr;
+char *arrToStack[128];
+char *ptr_strings[128];
+int index = 0;
+fn_copy = palloc_get_page (0);
+strlcpy (fn_copy, file_name, PGSIZE);
+
+for (token = strtok_r (fn_copy, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr))
+ 	arrToStack[index++] = token;
+
+index--;
+
+for(int i = index;i>=0; i--){
+*esp-=strlen(arrToStack[i])+1;
+strlcpy(*esp,arrToStack[i], strlen(arrToStack[i])+1 );
+ptr_strings[i] = *esp;
+}
+
+/* word-align*/
+if(((int)(*esp))%4==1) *esp-=1;
+else if(((int)(*esp))%4==2) *esp-=2;  
+else if(((int)(*esp))%4==3) *esp-=3; 
+
+/* NULL */
+*esp-=sz_int;  
+
+for(int i=index;i>=0;i--){   
+	*esp-=sz_int;
+	*((int*)(*esp)) = ptr_strings[i];
+}
+void** ptr = *esp;
+*esp-=sz_int;
+*((int*)(*esp)) = ptr;
+*esp-=sz_int;
+*((int*)(*esp)) =index+1;
+*esp-=sz_int;
+}
+
+char* make_new_name(char* fn){
+char *save_ptr; 
+return strtok_r(fn, " ", &save_ptr);
+}
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -28,6 +78,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+
+sema_init(&process_sema, 0);
   char *fn_copy;
   tid_t tid;
 
@@ -36,12 +88,13 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
 
+  strlcpy (fn_copy, file_name, PGSIZE);
+char *fn_new = make_new_name(file_name);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (fn_new, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_new); 
   return tid;
 }
 
@@ -88,7 +141,8 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+sema_down(&process_sema);
+  return get_exit_code();
 }
 
 /* Free the current process's resources. */
@@ -97,6 +151,8 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  printf("%s: exit(%d)\n",cur->name,get_exit_code());
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -114,6 +170,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  sema_up(&process_sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -222,10 +279,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  char *fn_copy;
+fn_copy = palloc_get_page (0);
+
+  strlcpy (fn_copy, file_name, PGSIZE);
+  char *fn_new = make_new_name(fn_copy);
+  file = filesys_open (fn_new);
+
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", fn_new);
       goto done; 
     }
 
@@ -238,7 +301,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", fn_new);
       goto done; 
     }
 
@@ -307,8 +370,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
-
+	
   success = true;
+
+make_stack(esp,file_name);
 
  done:
   /* We arrive here whether the load is successful or not. */
