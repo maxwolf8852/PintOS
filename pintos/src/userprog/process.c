@@ -28,6 +28,7 @@ void make_stack (void** esp, char* file_name){
 #define sz_int 4
 char *fn_copy, *token, save_ptr;
 char *arrToStack[128];
+
 char *ptr_strings[128];
 int index = 0;
 fn_copy = palloc_get_page (0);
@@ -142,7 +143,7 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
 sema_down(&process_sema);
-  return get_exit_code();
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -151,8 +152,6 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-
-  printf("%s: exit(%d)\n",cur->name,get_exit_code());
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

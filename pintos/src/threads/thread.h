@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -100,7 +101,28 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+//struct file_system* FS;
+    int all_n;
+struct list FS;
+struct list child_list;
+int child_c;
+struct thread* parent;
+struct semaphore sema;
+struct semaphore load_sema;
+bool load_err;
+int exit_code;
+int child_wait_tid;
+bool load_status;
   };
+
+struct child{
+tid_t tid;
+bool is_alive;
+int exit_code;
+struct list_elem elem;
+
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
