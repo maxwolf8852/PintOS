@@ -23,6 +23,7 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 struct semaphore process_sema;
+extern struct lock process_lock;
 
 void make_stack (void** esp, char* file_name){
 #define sz_int 4
@@ -115,10 +116,15 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  thread_current()->parent->load_err = !success;
+  sema_up(&thread_current()->parent->load_sema);
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success) {
+thread_current()->parent->exit_code = -1;
     thread_exit ();
+}
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -140,9 +146,18 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-sema_down(&process_sema);
+struct child* c_cur = list_search_c(child_tid, &thread_current()->child_list);
+if(c_cur){
+if(c_cur->is_alive)
+sema_down(&thread_current()->sema);
+int exit_code = c_cur->exit_code;
+list_remove(&c_cur->elem);
+free(c_cur);
+c_cur = 0;
+return exit_code;
+}
   return -1;
 }
 
@@ -152,6 +167,28 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+printf("%s: exit(%d)\n",cur->name,cur->exit_code);
+lock_acquire(&process_lock);
+file_close(cur->f_cur);
+for(struct list_elem* e =list_begin(&cur->FS);
+e != list_end (&cur->FS); e = list_next(e)){
+struct file_system* f_cur = list_entry(e, struct file_system,elem);
+ file_close(f_cur->fp);
+list_remove(&f_cur->elem);
+free(f_cur);
+f_cur = 0;
+}
+
+lock_release(&process_lock);
+
+for(struct list_elem* e =list_begin(&cur->child_list);
+e != list_end (&cur->child_list); e = list_next(e)){
+struct file_system* c_cur = list_entry(e, struct child,elem);
+list_remove(&c_cur->elem);
+free(c_cur);
+c_cur = 0;
+}
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -169,7 +206,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up(&process_sema);
+
 }
 
 /* Sets up the CPU for running user code in the current
@@ -282,12 +319,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
 fn_copy = palloc_get_page (0);
 
   strlcpy (fn_copy, file_name, PGSIZE);
-  char *fn_new = make_new_name(fn_copy);
-  file = filesys_open (fn_new);
+  fn_copy = make_new_name(fn_copy);
+  file = filesys_open (fn_copy);
 
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", fn_new);
+      printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
 
@@ -300,7 +337,7 @@ fn_copy = palloc_get_page (0);
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", fn_new);
+      printf ("load: %s: error loading executable\n", file_name);
       goto done; 
     }
 
@@ -373,9 +410,12 @@ fn_copy = palloc_get_page (0);
   success = true;
 
 make_stack(esp,file_name);
+file_deny_write(file);
+thread_current()->f_cur = file;
 
  done:
   /* We arrive here whether the load is successful or not. */
+if(!success)
   file_close (file);
   return success;
 }

@@ -97,23 +97,19 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-#endif
-
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
-
-//struct file_system* FS;
     int all_n;
 struct list FS;
 struct list child_list;
-int child_c;
 struct thread* parent;
 struct semaphore sema;
 struct semaphore load_sema;
 bool load_err;
 int exit_code;
-int child_wait_tid;
-bool load_status;
+struct file* f_cur;
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
   };
 
 struct child{
@@ -121,7 +117,6 @@ tid_t tid;
 bool is_alive;
 int exit_code;
 struct list_elem elem;
-
 };
 
 /* If false (default), use round-robin scheduler.

@@ -482,11 +482,11 @@ init_thread (struct thread *t, const char *name, int priority)
 list_init(&t->FS);
 list_init(&t->child_list);
 t->parent = 0;
-t->load_status = false;
 sema_init(&t->sema, 0);
 sema_init(&t->load_sema, 0);
 t->exit_code = 0;
 t->load_err = false;
+t->f_cur = 0;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
