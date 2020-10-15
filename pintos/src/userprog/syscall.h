@@ -1,7 +1,7 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 #include <list.h>
-
+#define SPEEDMODE
 struct file_system {
 int fd;
 struct file* fp;

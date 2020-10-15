@@ -106,6 +106,7 @@ struct semaphore load_sema;
 bool load_err;
 int exit_code;
 struct file* f_cur;
+int wait_tid;
 #endif
 
     /* Owned by thread.c. */

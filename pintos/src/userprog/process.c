@@ -67,9 +67,12 @@ void** ptr = *esp;
 *esp-=sz_int;
 }
 
-char* make_new_name(char* fn){
-char *save_ptr; 
-return strtok_r(fn, " ", &save_ptr);
+char* make_new_name(char* file_name){
+char* save_ptr;
+char *fn_copy = (char*)malloc((strlen(file_name)+1)*sizeof(char));
+strlcpy (fn_copy, file_name, strlen(file_name)+1);
+fn_copy = strtok_r(fn_copy, " ", &save_ptr);
+return fn_copy;
 }
 
 
@@ -92,11 +95,11 @@ sema_init(&process_sema, 0);
     return TID_ERROR;
 
   strlcpy (fn_copy, file_name, PGSIZE);
-char *fn_new = make_new_name(file_name);
+  char *fn_new = make_new_name(fn_copy);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fn_new, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_new); 
+    palloc_free_page (fn_copy); 
   return tid;
 }
 
@@ -122,7 +125,7 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) {
-thread_current()->parent->exit_code = -1;
+thread_current()->exit_code = -1;
     thread_exit ();
 }
 
@@ -150,8 +153,10 @@ process_wait (tid_t child_tid)
 {
 struct child* c_cur = list_search_c(child_tid, &thread_current()->child_list);
 if(c_cur){
-if(c_cur->is_alive)
+if(c_cur->is_alive){
+thread_current()->wait_tid = child_tid;
 sema_down(&thread_current()->sema);
+}
 int exit_code = c_cur->exit_code;
 list_remove(&c_cur->elem);
 free(c_cur);
@@ -315,11 +320,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  char *fn_copy;
-fn_copy = palloc_get_page (0);
-
-  strlcpy (fn_copy, file_name, PGSIZE);
-  fn_copy = make_new_name(fn_copy);
+  char* fn_copy = make_new_name(file_name);
   file = filesys_open (fn_copy);
 
   if (file == NULL) 

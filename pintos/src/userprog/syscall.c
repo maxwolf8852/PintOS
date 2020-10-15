@@ -22,7 +22,8 @@
 #include "threads/malloc.h"
 
 /*Faster 'cause uses processor's memory management unit */
-#define SPEEDMODE
+
+#define INTBYTE 4
 
 static void syscall_handler (struct intr_frame *);
 
@@ -63,21 +64,35 @@ lock_init(&process_lock);
 static void
 syscall_handler (struct intr_frame *f) 
 {
-int nr = *(int*) f->esp;
+if(!is_user_vaddr((const void*)f->esp)) abort();
+int nr;
+get_from_stack(&nr, f->esp, INTBYTE*1);
 int* arg = (int*) f->esp +1;
+#ifdef SPEEDMODE
 int args[3] = {0, 0, 0};
+#else
+int args[3] = {*((int*) f->esp +1), *((int*) f->esp +2), *((int*) f->esp +3)};
+#endif
+
 if (nr == SYS_EXIT) {
-get_from_stack(args, arg, sizeof(arg)*1);
+#ifdef SPEEDMODE
+get_from_stack(args, arg, INTBYTE*1);
+#else 
+if(!check_ptr(arg)) abort();
+#endif
 sys_exit(*args);
 }
 else if (nr == SYS_WRITE){
-get_from_stack(args, arg, sizeof(arg)*3);
+#ifdef SPEEDMODE
+get_from_stack(args, arg, INTBYTE*3);
+#else
+if(!check_ptr(arg) || !check_ptr(arg+1) || !check_ptr(arg+2)) abort();
+#endif
 if((int)(*args) == 1){ putbuf( ((const char**) f->esp)[2], ((size_t*) f->esp)[3]);}
 else{
 lock_acquire(&_lock);
-f->eax = sys_write((int)(*args), (const void*)((args+1)), (unsigned)(*(args+2)));
-lock_release(&_lock);
-}
+f->eax = sys_write((int)(*args), (const void*)(*(args+1)), (unsigned)(*(args+2)));
+lock_release(&_lock);}
 }
 else{
 
@@ -100,83 +115,27 @@ static const struct allCMD allcmdTable[] =
 {SYS_EXEC, 1, sys_exec},
 {SYS_WAIT, 1, sys_wait},
 };
-//if(!check_ptr(args) || !check_ptr(args+1) || !check_ptr(args+2)) abort();
+
 for(int i=0; i<9; i++)
-if(nr == allcmdTable[i].cmd) {get_from_stack(args, arg, sizeof(arg)*3);lock_acquire(&_lock);f->eax = allcmdTable[i].func(args[0], args[1], args[2]); lock_release(&_lock); break;}
+if(nr == allcmdTable[i].cmd) {
+#ifdef SPEEDMODE
+get_from_stack(args, arg, INTBYTE*allcmdTable[i].argc);
+#else
+if(!check_ptr(arg) || !check_ptr((arg+1)) || !check_ptr((arg+2)) )abort();
+#endif
+lock_acquire(&_lock);
+f->eax = allcmdTable[i].func(args[0], args[1], args[2]); 
+lock_release(&_lock); 
+break;}
+}
 
-}
-/*if (nr == SYS_EXIT) {
-get_from_stack(args, arg, sizeof(arg)*1);
-sys_exit(*args);
-}
-else if (nr == SYS_HALT){
-sys_halt();
-}
-
-else if (nr == SYS_CREATE){
-get_from_stack(args, arg, sizeof(arg)*2);
-lock_acquire(&_lock);
-f->eax =sys_create((const char*)(*args), (unsigned)(*(args+1)));
-lock_release(&_lock);
-}
-else if (nr == SYS_REMOVE){
-get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-f->eax =sys_remove((const char*)(*args));
-lock_release(&_lock);
-}
-else if (nr == SYS_OPEN){
-//get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-f->eax =sys_open((const char*)(*arg));
-lock_release(&_lock);
-}
-else if (nr == SYS_CLOSE){
-get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-sys_close((int)(*args));
-lock_release(&_lock);
-}
-else if (nr == SYS_FILESIZE){
-get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-f->eax = sys_filesize((int)(*args));
-lock_release(&_lock);
-}
-else if (nr == SYS_READ){
-get_from_stack(args, arg, sizeof(arg)*3);
-lock_acquire(&_lock);
-f->eax = sys_read((int)(*args), (void*)(*(args+1)), (unsigned)(*(args+2)));
-lock_release(&_lock);
-}
-else if (nr == SYS_WRITE){
-get_from_stack(args, arg, sizeof(arg)*3);
-if((int)(*args) == 1){ putbuf( ((const char**) f->esp)[2], ((size_t*) f->esp)[3]);}
-else{
-lock_acquire(&_lock);
-f->eax = sys_write((int)(*args), (const void*)((args+1)), (unsigned)(*(args+2)));
-lock_release(&_lock);
-}
-}
-else if (nr == SYS_EXEC){
-get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-f->eax = sys_exec((const char*)(*args));
-lock_release(&_lock);
-}
-else if (nr == SYS_WAIT){
-get_from_stack(args, arg, sizeof(arg)*1);
-lock_acquire(&_lock);
-f->eax = sys_wait((int)(args)[0]);
-lock_release(&_lock);
-}*/
 }
 
 #ifdef SPEEDMODE
 static int
 get_user (const uint8_t *uaddr)
 {
-if(uaddr>=PHYS_BASE) abort();
+if(uaddr>=PHYS_BASE) return -1;
 int result;
 asm ("movl $1f, %0; movzbl %1, %0; 1:"
 : "=&a" (result) : "m" (*uaddr));
@@ -185,8 +144,10 @@ return result;
 }
 
 static void get_from_stack(void* args, const uint8_t* stack, int bytes){
-for(int i=0; i<bytes; i++)
+for(int i=0; i<bytes; i++){
 *((uint8_t*)args+i) = get_user(stack+i);
+if(*((uint8_t*)args+i) == -1) abort();
+}
 }
 #else
 static inline bool check_ptr(const void* ptr){
@@ -202,19 +163,25 @@ struct child* c_cur = list_search_c(cur->tid, &cur->parent->child_list);
 if(c_cur){
 c_cur->is_alive = false;
 c_cur->exit_code = exit_code;
-}
-}
+if(cur->parent->wait_tid == cur->tid)
 sema_up(&cur->parent->sema);
+}
+}
+
 thread_exit();
 NON_REACHED();
 return 0;
 }
 
 static int sys_exec (const char* cmd_line){
-if(!cmd_line) return -1;
+#ifdef SPEEDMODE
+if(!cmd_line || get_user((const uint8_t*)cmd_line) == -1) 
+#else
+if(!cmd_line || !check_ptr(cmd_line)) 
+#endif
+return -1;
 tid_t tid = process_execute(cmd_line);
 sema_down(&thread_current()->load_sema);
-
 if(thread_current()->load_err){
 struct child* c_cur = list_search_c(tid, &thread_current()->child_list);
 if(c_cur){
@@ -238,13 +205,24 @@ NON_REACHED();
 
 
 static int sys_create (const char *file, unsigned initial_size){
-if(!file) abort();
+#ifdef SPEEDMODE
+if(!file || get_user((const uint8_t*)file) == -1) 
+#else
+if(!file || !check_ptr(file))
+#endif
+abort();
 int code= filesys_create(file, initial_size);
 return code;
 }
 
 static int sys_remove (const char *file){
-if(!file) abort();
+#ifdef SPEEDMODE
+if(!file || get_user((const uint8_t*)file) == -1) 
+#else
+if(!file || !check_ptr(file))
+#endif
+abort();
+
 int code= filesys_remove(file);
 return code;
 }
@@ -265,9 +243,14 @@ return 0;
 }
 
 static int sys_open (const char *file){
-const char* fn = file;
+#ifdef SPEEDMODE
+if(!file || get_user((const uint8_t*)file) == -1) 
+#else
+if(!file || !check_ptr(file))
+#endif
+abort();
 if(file == 0) abort();
-struct file* fin = filesys_open(fn);
+struct file* fin = filesys_open(file);
 if(!fin)
 return -1;
 struct thread* cur = thread_current();
@@ -293,7 +276,13 @@ if(temp == 0) return -1;
 return file_length(temp->fp);
 }
 
+
 static int sys_read (int fd, void* buffer, unsigned size){
+#ifdef SPEEDMODE
+//for(int i=0; i<size; i++)
+if(get_user((uint8_t*)buffer)==-1) abort();
+
+#endif
 if(fd == 0){
 for(int i = 0; i<size; i++)
 *((char*)buffer+i) = (char)input_getc();
@@ -301,11 +290,18 @@ return size;
 }
 struct file_system* temp = list_search(fd, &thread_current()->FS);
 if(temp==0) return -1;
+ 
 return file_read(temp->fp, buffer, size);
 }
 
 static int sys_write (int fd, const void* buffer, unsigned size){
-if(fd == 1){ putbuf( (const char**)buffer, (size_t*) size); return 0;}
+#ifdef SPEEDMODE
+if(!buffer || get_user((const uint8_t*)buffer) == -1) 
+#else
+if(!buffer || !check_ptr(buffer))
+#endif
+abort();
+//if(fd == 1){ putbuf( (const char**)buffer, (size_t*) size); return 0;}
 struct file_system* temp = list_search(fd, &thread_current()->FS);
 if(temp==0) return -1;
 return  file_write(temp->fp, buffer, size);

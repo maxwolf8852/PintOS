@@ -487,6 +487,7 @@ sema_init(&t->load_sema, 0);
 t->exit_code = 0;
 t->load_err = false;
 t->f_cur = 0;
+t->wait_tid = -1;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
