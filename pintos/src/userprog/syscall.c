@@ -65,12 +65,15 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
 if(!is_user_vaddr((const void*)f->esp)) abort();
+#ifdef SPEEDMODE
 int nr;
 get_from_stack(&nr, f->esp, INTBYTE*1);
 int* arg = (int*) f->esp +1;
-#ifdef SPEEDMODE
 int args[3] = {0, 0, 0};
 #else
+if(!check_ptr((const void*)f->esp)) abort();
+int nr = *(int*)f->esp;
+int* arg = (int*) f->esp +1;
 int args[3] = {*((int*) f->esp +1), *((int*) f->esp +2), *((int*) f->esp +3)};
 #endif
 
@@ -128,7 +131,6 @@ f->eax = allcmdTable[i].func(args[0], args[1], args[2]);
 lock_release(&_lock); 
 break;}
 }
-
 }
 
 #ifdef SPEEDMODE
@@ -279,10 +281,11 @@ return file_length(temp->fp);
 
 static int sys_read (int fd, void* buffer, unsigned size){
 #ifdef SPEEDMODE
-//for(int i=0; i<size; i++)
-if(get_user((uint8_t*)buffer)==-1) abort();
-
+if(get_user((uint8_t*)buffer)==-1)
+#else
+if(!check_ptr(buffer))
 #endif
+ abort();
 if(fd == 0){
 for(int i = 0; i<size; i++)
 *((char*)buffer+i) = (char)input_getc();
@@ -301,7 +304,6 @@ if(!buffer || get_user((const uint8_t*)buffer) == -1)
 if(!buffer || !check_ptr(buffer))
 #endif
 abort();
-//if(fd == 1){ putbuf( (const char**)buffer, (size_t*) size); return 0;}
 struct file_system* temp = list_search(fd, &thread_current()->FS);
 if(temp==0) return -1;
 return  file_write(temp->fp, buffer, size);

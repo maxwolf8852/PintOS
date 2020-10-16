@@ -175,13 +175,12 @@ process_exit (void)
 printf("%s: exit(%d)\n",cur->name,cur->exit_code);
 lock_acquire(&process_lock);
 file_close(cur->f_cur);
+if(!list_empty(&cur->FS))
 for(struct list_elem* e =list_begin(&cur->FS);
 e != list_end (&cur->FS); e = list_next(e)){
 struct file_system* f_cur = list_entry(e, struct file_system,elem);
  file_close(f_cur->fp);
 list_remove(&f_cur->elem);
-free(f_cur);
-f_cur = 0;
 }
 
 lock_release(&process_lock);
